@@ -165,13 +165,109 @@ python manage.py runserver
 
 ---
 
-## 🔐 8. [Следующий шаг] — добавление капчи
+## 🔐 8. Капча перед входом
 
-* Пользователь не авторизуется сразу после ввода логина и пароля
-* После успешной аутентификации переходит на `/captcha/`
-* Проходит визуальную капчу (2x2)
-* Только после этого происходит вход и редирект по роли
+После ввода логина и пароля пользователь **не авторизуется сразу**, а:
 
-➡️ *Капча будет реализована на основе изображений и JS, с логикой сборки правильного порядка.*
+1. Его ID сохраняется во временной сессии
+2. Он переходит на страницу `/captcha/`
+3. Там отображается **две сетки 2x2**:
+
+   * Слева — перемешанные части изображения
+   * Справа — пустые ячейки
+4. Пользователь кликает по картинкам в правильном порядке (`1 → 2 → 3 → 4`)
+5. После правильной сборки:
+
+   * происходит авторизация (`login()`)
+   * происходит редирект:
+
+     * если `user.is_superuser` → `/admin/`
+     * иначе → `/welcome/`
 
 ---
+
+### 🗂️ Структура:
+
+#### 🖼 Картинки
+
+```
+static/
+└── captcha/
+    ├── piece1.jpg
+    ├── piece2.jpg
+    ├── piece3.jpg
+    └── piece4.jpg
+```
+
+#### 📄 Шаблон `captcha.html`
+
+```html
+{% load static %}
+<h2>Собери изображение в правильном порядке</h2>
+<div id="container">
+  <div class="grid" id="source-grid">
+    <img src="{% static 'captcha/piece1.jpg' %}" data-id="1">
+    <img src="{% static 'captcha/piece2.jpg' %}" data-id="2">
+    <img src="{% static 'captcha/piece3.jpg' %}" data-id="3">
+    <img src="{% static 'captcha/piece4.jpg' %}" data-id="4">
+  </div>
+  <div class="grid" id="target-grid">
+    <div class="img-slot"></div><div class="img-slot"></div>
+    <div class="img-slot"></div><div class="img-slot"></div>
+  </div>
+</div>
+<form method="post" action="/check-captcha/" id="captcha-form">
+  {% csrf_token %}
+  <input type="hidden" name="order" id="order">
+  <button type="submit">Проверить</button>
+</form>
+<script>
+  // JS для перемещения изображений и отправки порядка
+</script>
+```
+
+---
+
+### 🧠 В `custom_login_view`
+
+Заменили `login(...)` на:
+
+```python
+request.session['pending_user_id'] = user.id
+return redirect('/captcha/')
+```
+
+---
+
+### ✅ Новые вьюхи:
+
+```python
+def captcha_view(request):
+    return render(request, 'captcha.html')
+
+@csrf_protect
+def check_captcha_view(request):
+    if request.method == 'POST':
+        if request.POST.get('order') == '1,2,3,4':
+            user_id = request.session.get('pending_user_id')
+            if user_id:
+                user = get_user_model().objects.get(id=user_id)
+                login(request, user)
+                del request.session['pending_user_id']
+                return redirect('/admin/' if user.is_superuser else '/welcome/')
+    return redirect('/captcha/')
+```
+
+---
+
+### 🔗 Новые URL-адреса
+
+```python
+path('captcha/', captcha_view, name='captcha'),
+path('check-captcha/', check_captcha_view, name='check_captcha'),
+```
+
+---
+
+✅ Теперь капча добавлена, и пользователь входит только после её прохождения.
+
