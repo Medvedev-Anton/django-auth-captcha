@@ -1,0 +1,64 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Капча</title>
+  <style>
+    .grid { display: grid; grid-template-columns: repeat(2, 100px); gap: 10px; margin: 20px; }
+    .img-slot { width: 100px; height: 100px; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; }
+    img { width: 100px; height: 100px; cursor: pointer; }
+    #container { display: flex; }
+    button { margin: 20px; padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <h2>Собери изображение в правильном порядке</h2>
+
+  <div id="container">
+    <!-- Левая таблица -->
+    <div class="grid" id="source-grid">
+      <img src="{% static 'captcha/piece1.jpg' %}" data-id="1">
+      <img src="{% static 'captcha/piece2.jpg' %}" data-id="2">
+      <img src="{% static 'captcha/piece3.jpg' %}" data-id="3">
+      <img src="{% static 'captcha/piece4.jpg' %}" data-id="4">
+    </div>
+
+    <!-- Правая таблица -->
+    <div class="grid" id="target-grid">
+      <div class="img-slot"></div>
+      <div class="img-slot"></div>
+      <div class="img-slot"></div>
+      <div class="img-slot"></div>
+    </div>
+  </div>
+
+  <form method="post" action="/check-captcha/" id="captcha-form">
+    {% csrf_token %}
+    <input type="hidden" name="order" id="order">
+    <button type="submit">Проверить</button>
+  </form>
+
+  <script>
+    const sourceGrid = document.getElementById('source-grid');
+    const targetGrid = document.getElementById('target-grid');
+    const orderInput = document.getElementById('order');
+
+    sourceGrid.addEventListener('click', function(e) {
+      if (e.target.tagName === 'IMG') {
+        const emptySlot = [...targetGrid.children].find(div => div.childElementCount === 0);
+        if (emptySlot) {
+          const clone = e.target.cloneNode(true);
+          emptySlot.appendChild(clone);
+          e.target.style.visibility = 'hidden'; // скрыть оригинал
+        }
+      }
+    });
+
+    document.getElementById('captcha-form').addEventListener('submit', function(e) {
+      const ids = [...targetGrid.querySelectorAll('img')].map(img => img.dataset.id);
+      orderInput.value = ids.join(',');
+    });
+  </script>
+</body>
+</html>
