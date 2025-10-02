@@ -1,0 +1,6 @@
+<h1>Привет, {{ user.username }}! Ты авторизовался!</h1>
+<form method="post" action="{% url 'logout' %}">
+  {% csrf_token %}
+  <button type="submit">Выйти</button>
+</form>
+
